@@ -3,6 +3,7 @@ import { Telegraf } from 'telegraf';
 import { Ticker } from 'binance-api-node'
 import * as dotenv from 'dotenv'
 import { message } from 'telegraf/filters'
+import * as ccxt from 'ccxt';
 
 dotenv.config()
 
@@ -20,9 +21,47 @@ const bot = new Telegraf(TELEGRAM_BOT_TOKEN as string);
 
 let cachedPairs: any[] = []
 let cachedFuturesPairs: any[] = []
+let cachedBitfinexPairs: any[] = []
+let cachedBigonePairs: any[] = []
+let cachedBybitPairs: any[] = []
+
+const fetchBitfinexPairs = async (ctx) => {
+  const bitfinex = new ccxt.bitfinex();
+  const markets = await bitfinex.loadMarkets();
+  const pairs = Object.keys(markets);
+  const newPairs = pairs.filter(p => !cachedBitfinexPairs.includes(p));
+  cachedBitfinexPairs = pairs;
+  if (newPairs.length > 0) {
+      ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, `New pairs on Bitfinex: ${newPairs.join(', ')}`.slice(0, 100));
+  }
+}
+
+const fetchBigonePairs = async (ctx) => {
+  const bigone = new ccxt.bigone();
+  const markets = await bigone.loadMarkets();
+  const pairs = Object.keys(markets);
+  const newPairs = pairs.filter(p => !cachedBigonePairs.includes(p));
+  cachedBigonePairs = pairs;
+  if (newPairs.length > 0) {
+      ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, `New pairs on Bigone: ${newPairs.join(', ')}`.slice(0, 100));
+  }
+}
+
+const fetchBybitPairs = async (ctx) => {
+  const bybit = new ccxt.bybit();
+  const markets = await bybit.loadMarkets();
+  const pairs = Object.keys(markets);
+  const newPairs = pairs.filter(p => !cachedBybitPairs.includes(p));
+  cachedBybitPairs = pairs;
+  if (newPairs.length > 0) {
+      ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, `New pairs on Bybit: ${newPairs.join(', ')}`.slice(0, 100));
+  }
+}
+
+
 
 const checkForNewPairs = async (ctx) => {
-	// check spot pairs
+  // check spot pairs
   binance.allBookTickers().then((tickers: { [key: string]: Ticker }) => {
       const pairs = Object.values(tickers).map(t => t.symbol);
       // Compare the current pairs to the cached pairs
@@ -34,15 +73,19 @@ const checkForNewPairs = async (ctx) => {
       }
   });
 
-	// check futures pairs
-	binance.futuresExchangeInfo().then((exchangeInfo) => {
-		const pairs = exchangeInfo.symbols.map((symbol: any) => symbol.symbol);
-		const newPairs = pairs.filter(p => !cachedFuturesPairs.includes(p));
-		cachedFuturesPairs = pairs;
-		if (newPairs.length > 0) {
-			ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, `New futures pairs on Binance: ${newPairs.join(', ')}`.slice(0, 100));
-		}
-	});
+  // check futures pairs
+  binance.futuresExchangeInfo().then((exchangeInfo) => {
+    const pairs = exchangeInfo.symbols.map((symbol: any) => symbol.symbol);
+    const newPairs = pairs.filter(p => !cachedFuturesPairs.includes(p));
+    cachedFuturesPairs = pairs;
+    if (newPairs.length > 0) {
+      ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, `New futures pairs on Binance: ${newPairs.join(', ')}`.slice(0, 100));
+    }
+  });
+
+  fetchBitfinexPairs(ctx);
+	fetchBigonePairs(ctx);
+	fetchBybitPairs(ctx);
 }
 
 bot.start((ctx) => ctx.reply('Welcome'));
