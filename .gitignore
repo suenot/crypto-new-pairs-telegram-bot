@@ -1,0 +1,19 @@
+# Ignore compiled JavaScript files
+*.js
+
+# Ignore the .env file
+.env
+
+# Ignore the node_modules directory
+node_modules/
+
+# Ignore MacOS-specific files
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+
+# Ignore Windows-specific files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
