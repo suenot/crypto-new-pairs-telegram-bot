@@ -19,11 +19,11 @@ const binance = Binance({
 
 const bot = new Telegraf(TELEGRAM_BOT_TOKEN as string);
 
-let cachedPairs: any[] = []
-let cachedFuturesPairs: any[] = []
-let cachedBitfinexPairs: any[] = []
-let cachedBigonePairs: any[] = []
-let cachedBybitPairs: any[] = []
+let cachedPairs: string[] = []
+let cachedFuturesPairs: string[] = []
+let cachedBitfinexPairs: string[] = []
+let cachedBigonePairs: string[] = []
+let cachedBybitPairs: string[] = []
 
 const fetchBitfinexPairs = async (ctx) => {
   const bitfinex = new ccxt.bitfinex();
