@@ -10,252 +10,338 @@ const log = debug('main');
 dotenv.config()
 
 const main = async () => {
+  const TELEGRAM_BOT_TOKEN: string = process.env.TELEGRAM_BOT_TOKEN as string
+  const bot = new Telegraf(TELEGRAM_BOT_TOKEN as string);
 
-	const TELEGRAM_BOT_TOKEN: string = process.env.TELEGRAM_BOT_TOKEN as string
-	const TELEGRAM_CHAT_NAME: string = process.env.TELEGRAM_CHAT_NAME as string
-	log({TELEGRAM_CHAT_NAME})
+  //add array to store admin ids
+  let botAdmins: number[] = [];
+  if (process.env?.TELEGRAM_BOT_ADMIN_IDS) {
+    botAdmins = (process.env.TELEGRAM_BOT_ADMIN_IDS as string).split(',').map((item) => Number(item));
+    log({botAdmins})
+  } else {
+    const botAdminNames = (process.env.TELEGRAM_BOT_ADMIN_NAMES as string).split(',');
+    log({botAdminNames})
+    botAdminNames.forEach(async (username) => {
+        const adminId = await findChannelIdByName(bot, '@'+username);
+        botAdmins.push(adminId);
+    });
+    log({botAdmins})
+  }
 
-	const bot = new Telegraf(TELEGRAM_BOT_TOKEN as string);
+  const TELEGRAM_CHAT_NAME: string = '@'+(process.env.TELEGRAM_CHAT_NAME as string)
+  log({TELEGRAM_CHAT_NAME})
 
-	const TELEGRAM_CHAT_ID: string = process.env.TELEGRAM_CHAT_ID as string || String(await findChannelIdByName(bot, process.env.TELEGRAM_CHAT_NAME as string))
-	log({TELEGRAM_CHAT_ID})
+  const TELEGRAM_CHAT_ID: string = String(await findChannelIdByName(bot, TELEGRAM_CHAT_NAME))
+  log({TELEGRAM_CHAT_ID})
 
-	const BINANCE_API_KEY: string = process.env.BINANCE_API_KEY as string
-	const BINANCE_API_SECRET: string = process.env.BINANCE_API_SECRET as string
+  const BINANCE_API_KEY: string = process.env.BINANCE_API_KEY as string
+  const BINANCE_API_SECRET: string = process.env.BINANCE_API_SECRET as string
 
-	const binance = Binance({
-		apiKey: BINANCE_API_KEY,
-		apiSecret: BINANCE_API_SECRET
-	});
+  const binance = Binance({
+    apiKey: BINANCE_API_KEY,
+    apiSecret: BINANCE_API_SECRET
+  });
 
+  let cachedPairs: string[] = []
+  let cachedFuturesPairs: string[] = []
 
+  interface Store {
+    [key: string]: {
+      engine: string,
+      pairs: string[],
+      enabled: boolean,
+    }
+  }
 
-	let cachedPairs: string[] = []
-	let cachedFuturesPairs: string[] = []
+  const ccxtExchanges = [
+    'alpaca',
+    'ascendex',
+    'bequant',
+    'bigone',
+    'binance',
+    'binancecoinm',
+    'binanceus',
+    'binanceusdm',
+    'bit2c',
+    'bitbank',
+    'bitbay',
+    'bitbns',
+    'bitcoincom',
+    'bitfinex',
+    'bitfinex2',
+    'bitflyer',
+    'bitforex',
+    'bitget',
+    'bithumb',
+    'bitmart',
+    'bitmex',
+    'bitopro',
+    'bitpanda',
+    'bitrue',
+    'bitso',
+    'bitstamp',
+    'bitstamp1',
+    'bittrex',
+    'bitvavo',
+    'bkex',
+    'bl3p',
+    'blockchaincom',
+    'btcalpha',
+    'btcbox',
+    'btcex',
+    'btcmarkets',
+    'btctradeua',
+    'btcturk',
+    'buda',
+    'bybit',
+    'cex',
+    'coinbase',
+    'coinbaseprime',
+    'coinbasepro',
+    'coincheck',
+    'coinex',
+    'coinfalcon',
+    'coinmate',
+    'coinone',
+    'coinspot',
+    'cryptocom',
+    'currencycom',
+    'delta',
+    'deribit',
+    'digifinex',
+    'exmo',
+    'flowbtc',
+    'fmfwio',
+    'gate',
+    'gateio',
+    'gemini',
+    'hitbtc',
+    'hitbtc3',
+    'hollaex',
+    'huobi',
+    'huobijp',
+    'huobipro',
+    'idex',
+    'independentreserve',
+    'indodax',
+    'itbit',
+    'kraken',
+    'kucoin',
+    'kucoinfutures',
+    'kuna',
+    'latoken',
+    'lbank',
+    'lbank2',
+    'luno',
+    'lykke',
+    'mercado',
+    'mexc',
+    'mexc3',
+    'ndax',
+    'novadax',
+    'oceanex',
+    'okcoin',
+    'okex',
+    'okex5',
+    'okx',
+    'paymium',
+    'phemex',
+    'poloniex',
+    'poloniexfutures',
+    'probit',
+    'ripio',
+    'stex',
+    'therock',
+    'tidex',
+    'timex',
+    'tokocrypto',
+    'upbit',
+    'wavesexchange',
+    'wazirx',
+    'whitebit',
+    'woo',
+    'yobit',
+    'zaif',
+    'zb',
+    'zipmex',
+    'zonda'
+    ]
 
-	interface Store {
-		[key: string]: {
-			engine: string,
-			pairs: string[],
-			enabled: boolean,
-		}
-	}
+  let store: Store = {
+    bitfinex: {
+      engine: 'ccxt',
+      pairs: [],
+      enabled: true,
+    },
+    bigone: {
+      engine: 'ccxt',
+      pairs: [],
+      enabled: true,
+    },
+    bybit: {
+      engine: 'ccxt',
+      pairs: [],
+      enabled: true,
+    },
+    binance: {
+      engine: 'binance',
+      pairs: [],
+      enabled: true,
+    },
+    binancefutures: {
+      engine: 'binance',
+      pairs: [],
+      enabled: true,
+    },
+  }
 
-	const ccxtExchanges = [
-		'alpaca',
-		'ascendex',
-		'bequant',
-		'bigone',
-		'binance',
-		'binancecoinm',
-		'binanceus',
-		'binanceusdm',
-		'bit2c',
-		'bitbank',
-		'bitbay',
-		'bitbns',
-		'bitcoincom',
-		'bitfinex',
-		'bitfinex2',
-		'bitflyer',
-		'bitforex',
-		'bitget',
-		'bithumb',
-		'bitmart',
-		'bitmex',
-		'bitopro',
-		'bitpanda',
-		'bitrue',
-		'bitso',
-		'bitstamp',
-		'bitstamp1',
-		'bittrex',
-		'bitvavo',
-		'bkex',
-		'bl3p',
-		'blockchaincom',
-		'btcalpha',
-		'btcbox',
-		'btcex',
-		'btcmarkets',
-		'btctradeua',
-		'btcturk',
-		'buda',
-		'bybit',
-		'cex',
-		'coinbase',
-		'coinbaseprime',
-		'coinbasepro',
-		'coincheck',
-		'coinex',
-		'coinfalcon',
-		'coinmate',
-		'coinone',
-		'coinspot',
-		'cryptocom',
-		'currencycom',
-		'delta',
-		'deribit',
-		'digifinex',
-		'exmo',
-		'flowbtc',
-		'fmfwio',
-		'gate',
-		'gateio',
-		'gemini',
-		'hitbtc',
-		'hitbtc3',
-		'hollaex',
-		'huobi',
-		'huobijp',
-		'huobipro',
-		'idex',
-		'independentreserve',
-		'indodax',
-		'itbit',
-		'kraken',
-		'kucoin',
-		'kucoinfutures',
-		'kuna',
-		'latoken',
-		'lbank',
-		'lbank2',
-		'luno',
-		'lykke',
-		'mercado',
-		'mexc',
-		'mexc3',
-		'ndax',
-		'novadax',
-		'oceanex',
-		'okcoin',
-		'okex',
-		'okex5',
-		'okx',
-		'paymium',
-		'phemex',
-		'poloniex',
-		'poloniexfutures',
-		'probit',
-		'ripio',
-		'stex',
-		'therock',
-		'tidex',
-		'timex',
-		'tokocrypto',
-		'upbit',
-		'wavesexchange',
-		'wazirx',
-		'whitebit',
-		'woo',
-		'yobit',
-		'zaif',
-		'zb',
-		'zipmex',
-		'zonda'
-		]
+  async function findChannelIdByName(ctx, channelName) {
+    log('fn findChannelIdByName');
+    log({channelName})
+    const chat = await bot.telegram.getChat(channelName);
+    log({chat, chatId: chat.id})
+    return chat.id;
+  }
 
-	let store: Store = {
-		bitfinex: {
-			engine: 'ccxt',
-			pairs: [],
-			enabled: true,
-		},
-		bigone: {
-			engine: 'ccxt',
-			pairs: [],
-			enabled: true,
-		},
-		bybit: {
-			engine: 'ccxt',
-			pairs: [],
-			enabled: true,
-		},
-		binance: {
-			engine: 'binance',
-			pairs: [],
-			enabled: true,
-		},
-		binancefutures: {
-			engine: 'binance',
-			pairs: [],
-			enabled: true,
-		},
-	}
+  // use ccxtExchanges list to add others exchanges to the store with default values: ccxt engine, empty pairs array and disabled
+  ccxtExchanges.forEach(exchange => {
+    if (store[exchange]) return;
+    store[exchange] = {
+      engine: 'ccxt',
+      pairs: [],
+      enabled: false,
+    }
+  })
 
-	async function findChannelIdByName(ctx, channelName) {
-		const result = await bot.telegram.getChat(channelName);
-		return result.id;
-	}
+  const fetchCCXTPairs = async (ctx, exchangeName: string) => {
+    const exchange = new ccxt[exchangeName]();
+    const markets = await exchange.loadMarkets();
+    const pairs = Object.keys(markets);
+    const newPairs = pairs.filter(p => !store[exchangeName].pairs.includes(p));
+    store[exchangeName].pairs = pairs;
+    if (newPairs.length > 0) {
+      const message = `New pairs on ${exchangeName}: ${newPairs.join(', ')}`;
+      if (message.length > 100) {
+        ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, `Start comparing pairs on ${exchangeName}`);
+      } else {
+        ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
+      }
+    }
+  }
 
-	// use ccxtExchanges list to add others exchanges to the store with default values: ccxt engine, empty pairs array and disabled
-	ccxtExchanges.forEach(exchange => {
-		if (store[exchange]) return;
-		store[exchange] = {
-			engine: 'ccxt',
-			pairs: [],
-			enabled: false,
-		}
-	})
+  const checkForNewPairs = async (ctx) => {
+    // check spot pairs
+    binance.allBookTickers().then((tickers: { [key: string]: Ticker }) => {
+      const pairs = Object.values(tickers).map(t => t.symbol);
+      // Compare the current pairs to the cached pairs
+      const newPairs = pairs.filter(p => !cachedPairs.includes(p));
+      cachedPairs = pairs;
+      // If there are new pairs, post a message to Telegram
+      if (newPairs.length > 0) {
+        const message = `New SPOT pairs on Binance: ${newPairs.join(', ')}`;
+        if (message.length > 100) {
+          ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, 'Start comparing pairs on Binance Spot');
+        } else {
+          ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
+        }
+      }
+    });
 
-	const fetchCCXTPairs = async (ctx, exchangeName: string) => {
-		const exchange = new ccxt[exchangeName]();
-		const markets = await exchange.loadMarkets();
-		const pairs = Object.keys(markets);
-		const newPairs = pairs.filter(p => !store[exchangeName].pairs.includes(p));
-		store[exchangeName].pairs = pairs;
-		if (newPairs.length > 0) {
-			ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, `New pairs on ${exchangeName}: ${newPairs.join(', ')}`.slice(0, 100));
-		}
-	}
+    // check futures pairs
+    binance.futuresExchangeInfo().then((exchangeInfo) => {
+      const pairs = exchangeInfo.symbols.map((symbol: any) => symbol.symbol);
+      const newPairs = pairs.filter(p => !cachedFuturesPairs.includes(p));
+      cachedFuturesPairs = pairs;
+      if (newPairs.length > 0) {
+        const message = `New FUTURES pairs on Binance: ${newPairs.join(', ')}`;
+        if (message.length > 100) {
+          ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, 'Start comparing pairs on Binance Futures');
+        } else {
+          ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
+        }
+      }
+    });
 
-	const checkForNewPairs = async (ctx) => {
-		// check spot pairs
-		binance.allBookTickers().then((tickers: { [key: string]: Ticker }) => {
-				const pairs = Object.values(tickers).map(t => t.symbol);
-				// Compare the current pairs to the cached pairs
-				const newPairs = pairs.filter(p => !cachedPairs.includes(p));
-				cachedPairs = pairs;
-				// If there are new pairs, post a message to Telegram
-				if (newPairs.length > 0) {
-						ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, `New SPOT pairs on Binance: ${newPairs.join(', ')}`.slice(0, 100));
-				}
-		});
+    // for cycle for all exchanges with ccxt engine and enabled: run fetchCCXTPairs
+    for (const exchangeName in store) {
+      if (store[exchangeName].engine === 'ccxt' && store[exchangeName].enabled) {
+        fetchCCXTPairs(ctx, exchangeName);
+      }
+    }
+  }
 
-		// check futures pairs
-		binance.futuresExchangeInfo().then((exchangeInfo) => {
-			const pairs = exchangeInfo.symbols.map((symbol: any) => symbol.symbol);
-			const newPairs = pairs.filter(p => !cachedFuturesPairs.includes(p));
-			cachedFuturesPairs = pairs;
-			if (newPairs.length > 0) {
-				ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, `New FUTURES pairs on Binance: ${newPairs.join(', ')}`.slice(0, 100));
-			}
-		});
+  bot.start((ctx) => ctx.reply('Welcome'));
 
-		// for cycle for all exchanges with ccxt engine and enabled: run fetchCCXTPairs
-		for (const exchangeName in store) {
-			if (store[exchangeName].engine === 'ccxt' && store[exchangeName].enabled) {
-				fetchCCXTPairs(ctx, exchangeName);
-			}
-		}
-	}
+  // adding the middleware to check if user is admin
+  bot.use((ctx, next) => {
+    const userId = ctx?.message?.from?.id || -1;
+    if (!botAdmins.includes(userId)) {
+        ctx.reply("Sorry, you do not have permission to perform this action.");
+        console.log("Sorry, you do not have permission to perform this action." + userId + " " + typeof(userId));
+        return
+    }
+    return next();
+  });
 
-	bot.start((ctx) => ctx.reply('Welcome'));
+  // adding command to enable exchange
+  bot.command("enable", (ctx) => {
+      const exchange = ctx.message.text.split(" ")[1];
+      if (!store[exchange]) {
+          ctx.reply(`${exchange} is not a valid exchange.`);
+          return;
+      }
+      if (store[exchange].enabled) {
+          ctx.reply(`${exchange} is already enabled.`);
+          return;
+      }
+      store[exchange].enabled = true;
+      ctx.reply(`${exchange} has been enabled.`);
+  });
 
-	bot.command('newpairs', (ctx) => {
-		// Fetch the current list of trading pairs from Binance
-		checkForNewPairs(ctx);
-	});
+  // adding command to disable exchange
+  bot.command("disable", (ctx) => {
+      const exchange = ctx.message.text.split(" ")[1];
+      if (!store[exchange]) {
+          ctx.reply(`${exchange} is not a valid exchange.`);
+          return;
+      }
+      if (!store[exchange].enabled) {
+          ctx.reply(`${exchange} is already disabled.`);
+          return;
+      }
+      store[exchange].enabled = false;
+      ctx.reply(`${exchange} has been disabled.`);
+  });
 
-	bot.on(message('text'), async (ctx) => {
-		ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, `hi`);
-	});
+  bot.command('newpairs', (ctx) => {
+    // Fetch the current list of trading pairs from Binance
+    checkForNewPairs(ctx);
+  });
 
-	bot.launch();
+  bot.command("enabled_exchanges", (ctx) => {
+    let enabledExchanges = "Enabled Exchanges: ";
+    for (const exchange in store) {
+        if (store[exchange].enabled) {
+            enabledExchanges += `${exchange} `;
+        }
+    }
+    ctx.reply(enabledExchanges);
+  });
 
-	setInterval(() => {
-		checkForNewPairs(bot);
-	}, 60000);
+  bot.command("help", (ctx) => {
+    let helpText = "Available commands:\n";
+    helpText += "/enable [exchange] - Enable an exchange\n";
+    helpText += "/disable [exchange] - Disable an exchange\n";
+    helpText += "/enabled_exchanges - Show all enabled exchanges\n";
+    helpText += "/help - Show all available commands\n"
+    ctx.reply(helpText);
+  });
+
+  bot.launch();
+
+  setInterval(() => {
+    checkForNewPairs(bot);
+  }, 60000);
 
 }
 main();
