@@ -2,7 +2,6 @@ import Binance from 'binance-api-node';
 import { Telegraf } from 'telegraf';
 import { Ticker } from 'binance-api-node'
 import * as dotenv from 'dotenv'
-import { message } from 'telegraf/filters'
 import * as ccxt from 'ccxt';
 import debug from 'debug';
 const log = debug('main');
@@ -48,6 +47,7 @@ const main = async () => {
   interface Store {
     [key: string]: {
       engine: string,
+      engineInstance?: any,
       pairs: string[],
       enabled: boolean,
     }
@@ -58,10 +58,10 @@ const main = async () => {
     'ascendex',
     'bequant',
     'bigone',
-    'binance',
-    'binancecoinm',
-    'binanceus',
-    'binanceusdm',
+    // 'binance',
+    // 'binancecoinm',
+    // 'binanceus',
+    // 'binanceusdm',
     'bit2c',
     'bitbank',
     'bitbay',
@@ -165,24 +165,9 @@ const main = async () => {
     'zb',
     'zipmex',
     'zonda'
-    ]
+  ]
 
   let store: Store = {
-    bitfinex: {
-      engine: 'ccxt',
-      pairs: [],
-      enabled: true,
-    },
-    bigone: {
-      engine: 'ccxt',
-      pairs: [],
-      enabled: true,
-    },
-    bybit: {
-      engine: 'ccxt',
-      pairs: [],
-      enabled: true,
-    },
     binance: {
       engine: 'binance',
       pairs: [],
@@ -197,7 +182,7 @@ const main = async () => {
 
   async function findChannelIdByName(ctx, channelName) {
     log('fn findChannelIdByName');
-    log({channelName})
+    log({channelName});
     const chat = await bot.telegram.getChat(channelName);
     log({chat, chatId: chat.id})
     return chat.id;
@@ -206,61 +191,79 @@ const main = async () => {
   // use ccxtExchanges list to add others exchanges to the store with default values: ccxt engine, empty pairs array and disabled
   ccxtExchanges.forEach(exchange => {
     if (store[exchange]) return;
-    store[exchange] = {
-      engine: 'ccxt',
-      pairs: [],
-      enabled: false,
+    try {
+      store[exchange] = {
+        engine: 'ccxt',
+        pairs: [],
+        enabled: true,
+        engineInstance: new ccxt[exchange](),
+      }
+    } catch (e) {
+      log(`Error creating ccxt instance for ${exchange}`);
     }
   })
 
   const fetchCCXTPairs = async (ctx, exchangeName: string) => {
-    const exchange = new ccxt[exchangeName]();
-    const markets = await exchange.loadMarkets();
-    const pairs = Object.keys(markets);
-    const newPairs = pairs.filter(p => !store[exchangeName].pairs.includes(p));
-    store[exchangeName].pairs = pairs;
-    if (newPairs.length > 0) {
-      const message = `New pairs on ${exchangeName}: ${newPairs.join(', ')}`;
-      if (message.length > 100) {
-        ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, `Start comparing pairs on ${exchangeName}`);
-      } else {
-        ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
+    try {
+      const exchange = store[exchangeName].engineInstance;
+      const markets = await exchange.loadMarkets();
+      const pairs = Object.keys(markets);
+      const newPairs = pairs.filter(p => !store[exchangeName].pairs.includes(p));
+      store[exchangeName].pairs = pairs;
+      if (newPairs.length > 0) {
+        const message = `New pairs on ${exchangeName}: ${newPairs.join(', ')}`;
+        if (message.length > 100) {
+          ctx.telegram.sendMessage(botAdmins?.[0], `Start comparing pairs on ${exchangeName}`);
+        } else {
+          ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
+        }
       }
+    } catch (e) {
+      log(`Error fetching pairs from ${exchangeName}`);
     }
   }
 
   const checkForNewPairs = async (ctx) => {
-    // check spot pairs
-    binance.allBookTickers().then((tickers: { [key: string]: Ticker }) => {
-      const pairs = Object.values(tickers).map(t => t.symbol);
-      // Compare the current pairs to the cached pairs
-      const newPairs = pairs.filter(p => !cachedPairs.includes(p));
-      cachedPairs = pairs;
-      // If there are new pairs, post a message to Telegram
-      if (newPairs.length > 0) {
-        const message = `New SPOT pairs on Binance: ${newPairs.join(', ')}`;
-        if (message.length > 100) {
-          ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, 'Start comparing pairs on Binance Spot');
-        } else {
-          ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
+    try {
+      // check spot pairs
+      binance.allBookTickers().then((tickers: { [key: string]: Ticker }) => {
+        const pairs = Object.values(tickers).map(t => t.symbol);
+        // Compare the current pairs to the cached pairs
+        const newPairs = pairs.filter(p => !cachedPairs.includes(p));
+        cachedPairs = pairs;
+        // If there are new pairs, post a message to Telegram
+        if (newPairs.length > 0) {
+          const message = `New SPOT pairs on Binance: ${newPairs.join(', ')}`;
+          if (message.length > 100) {
+            ctx.telegram.sendMessage(botAdmins?.[0], 'Start comparing pairs on Binance Spot');
+          } else {
+            ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
+          }
         }
-      }
-    });
+      });
+    } catch (e) {
+      log('Error fetching pairs from Binance');
+    }
 
-    // check futures pairs
-    binance.futuresExchangeInfo().then((exchangeInfo) => {
-      const pairs = exchangeInfo.symbols.map((symbol: any) => symbol.symbol);
-      const newPairs = pairs.filter(p => !cachedFuturesPairs.includes(p));
-      cachedFuturesPairs = pairs;
-      if (newPairs.length > 0) {
-        const message = `New FUTURES pairs on Binance: ${newPairs.join(', ')}`;
-        if (message.length > 100) {
-          ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, 'Start comparing pairs on Binance Futures');
-        } else {
-          ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
+    try {
+      // check futures pairs
+      binance.futuresExchangeInfo().then((exchangeInfo) => {
+        const pairs = exchangeInfo.symbols.map((symbol: any) => symbol.symbol);
+        const newPairs = pairs.filter(p => !cachedFuturesPairs.includes(p));
+        cachedFuturesPairs = pairs;
+        if (newPairs.length > 0) {
+          const message = `New FUTURES pairs on Binance: ${newPairs.join(', ')}`;
+          if (message.length > 100) {
+            ctx.telegram.sendMessage(botAdmins?.[0], 'Start comparing pairs on Binance Futures');
+          } else {
+            ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
+          }
         }
-      }
-    });
+      });
+    } catch (e) {
+      log('Error fetching pairs from Binance Futures');
+    }
+
 
     // for cycle for all exchanges with ccxt engine and enabled: run fetchCCXTPairs
     for (const exchangeName in store) {
