@@ -50,6 +50,7 @@ const main = async () => {
       engineInstance?: any,
       pairs: string[],
       enabled: boolean,
+      firstRun: boolean,
     }
   }
 
@@ -106,7 +107,7 @@ const main = async () => {
     'coinspot',
     'cryptocom',
     'currencycom',
-    'delta',
+    // 'delta',
     'deribit',
     'digifinex',
     'exmo',
@@ -134,7 +135,7 @@ const main = async () => {
     'lbank2',
     'luno',
     'lykke',
-    'mercado',
+    // 'mercado',
     'mexc',
     'mexc3',
     'ndax',
@@ -149,10 +150,10 @@ const main = async () => {
     'poloniex',
     'poloniexfutures',
     'probit',
-    'ripio',
+    // 'ripio',
     'stex',
     'therock',
-    'tidex',
+    // 'tidex',
     'timex',
     'tokocrypto',
     'upbit',
@@ -172,11 +173,13 @@ const main = async () => {
       engine: 'binance',
       pairs: [],
       enabled: true,
+      firstRun: true,
     },
     binancefutures: {
       engine: 'binance',
       pairs: [],
       enabled: true,
+      firstRun: true,
     },
   }
 
@@ -197,6 +200,7 @@ const main = async () => {
         pairs: [],
         enabled: true,
         engineInstance: new ccxt[exchange](),
+        firstRun: true,
       }
     } catch (e) {
       log(`Error creating ccxt instance for ${exchange}`);
@@ -210,10 +214,11 @@ const main = async () => {
       const pairs = Object.keys(markets);
       const newPairs = pairs.filter(p => !store[exchangeName].pairs.includes(p));
       store[exchangeName].pairs = pairs;
-      if (newPairs.length > 0) {
+      if (newPairs.length > 0 && !store[exchangeName].firstRun) {
+        store[exchangeName].firstRun = false;
         const message = `New pairs on ${exchangeName}: ${newPairs.join(', ')}`;
         if (message.length > 100) {
-          ctx.telegram.sendMessage(botAdmins?.[0], `Start comparing pairs on ${exchangeName}`);
+          // ctx.telegram.sendMessage(botAdmins?.[0], `Start comparing pairs on ${exchangeName}`);
         } else {
           ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
         }
@@ -232,10 +237,11 @@ const main = async () => {
         const newPairs = pairs.filter(p => !cachedPairs.includes(p));
         cachedPairs = pairs;
         // If there are new pairs, post a message to Telegram
-        if (newPairs.length > 0) {
+        if (newPairs.length > 0 && !store.binance.firstRun) {
+          store['binance'].firstRun = false;
           const message = `New SPOT pairs on Binance: ${newPairs.join(', ')}`;
           if (message.length > 100) {
-            ctx.telegram.sendMessage(botAdmins?.[0], 'Start comparing pairs on Binance Spot');
+            // ctx.telegram.sendMessage(botAdmins?.[0], 'Start comparing pairs on Binance Spot');
           } else {
             ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
           }
@@ -251,10 +257,11 @@ const main = async () => {
         const pairs = exchangeInfo.symbols.map((symbol: any) => symbol.symbol);
         const newPairs = pairs.filter(p => !cachedFuturesPairs.includes(p));
         cachedFuturesPairs = pairs;
-        if (newPairs.length > 0) {
+        if (newPairs.length > 0 && !store.binancefutures.firstRun) {
+          store['binancefutures'].firstRun = false;
           const message = `New FUTURES pairs on Binance: ${newPairs.join(', ')}`;
           if (message.length > 100) {
-            ctx.telegram.sendMessage(botAdmins?.[0], 'Start comparing pairs on Binance Futures');
+            // ctx.telegram.sendMessage(botAdmins?.[0], 'Start comparing pairs on Binance Futures');
           } else {
             ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
           }
