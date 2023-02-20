@@ -4,9 +4,12 @@ import { Ticker } from 'binance-api-node'
 import * as dotenv from 'dotenv'
 import * as ccxt from 'ccxt';
 import debug from 'debug';
-const log = debug('main');
+import { ccxtExchanges } from './exchanges';
 
+const log = debug('main');
 dotenv.config()
+
+const sleep = (ms: number) => { return new Promise(resolve => setTimeout(resolve, ms)) };
 
 const main = async () => {
   const TELEGRAM_BOT_TOKEN: string = process.env.TELEGRAM_BOT_TOKEN as string
@@ -53,120 +56,6 @@ const main = async () => {
       firstRun: boolean,
     }
   }
-
-  const ccxtExchanges = [
-    'alpaca',
-    'ascendex',
-    'bequant',
-    'bigone',
-    // 'binance',
-    // 'binancecoinm',
-    // 'binanceus',
-    // 'binanceusdm',
-    'bit2c',
-    'bitbank',
-    'bitbay',
-    'bitbns',
-    'bitcoincom',
-    'bitfinex',
-    'bitfinex2',
-    'bitflyer',
-    'bitforex',
-    'bitget',
-    'bithumb',
-    'bitmart',
-    'bitmex',
-    'bitopro',
-    'bitpanda',
-    'bitrue',
-    'bitso',
-    'bitstamp',
-    'bitstamp1',
-    'bittrex',
-    'bitvavo',
-    'bkex',
-    'bl3p',
-    'blockchaincom',
-    'btcalpha',
-    'btcbox',
-    'btcex',
-    'btcmarkets',
-    'btctradeua',
-    'btcturk',
-    'buda',
-    'bybit',
-    'cex',
-    'coinbase',
-    'coinbaseprime',
-    'coinbasepro',
-    'coincheck',
-    'coinex',
-    'coinfalcon',
-    'coinmate',
-    'coinone',
-    'coinspot',
-    'cryptocom',
-    'currencycom',
-    // 'delta',
-    'deribit',
-    'digifinex',
-    'exmo',
-    'flowbtc',
-    'fmfwio',
-    'gate',
-    'gateio',
-    'gemini',
-    'hitbtc',
-    'hitbtc3',
-    'hollaex',
-    'huobi',
-    'huobijp',
-    'huobipro',
-    'idex',
-    'independentreserve',
-    'indodax',
-    'itbit',
-    'kraken',
-    'kucoin',
-    'kucoinfutures',
-    'kuna',
-    'latoken',
-    'lbank',
-    'lbank2',
-    'luno',
-    'lykke',
-    // 'mercado',
-    'mexc',
-    'mexc3',
-    'ndax',
-    'novadax',
-    'oceanex',
-    'okcoin',
-    'okex',
-    'okex5',
-    'okx',
-    'paymium',
-    'phemex',
-    'poloniex',
-    'poloniexfutures',
-    'probit',
-    // 'ripio',
-    'stex',
-    'therock',
-    // 'tidex',
-    'timex',
-    'tokocrypto',
-    'upbit',
-    'wavesexchange',
-    'wazirx',
-    'whitebit',
-    'woo',
-    'yobit',
-    'zaif',
-    'zb',
-    'zipmex',
-    'zonda'
-  ]
 
   let store: Store = {
     binance: {
@@ -220,7 +109,8 @@ const main = async () => {
         if (message.length > 100) {
           // ctx.telegram.sendMessage(botAdmins?.[0], `Start comparing pairs on ${exchangeName}`);
         } else {
-          ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
+          await ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
+          await sleep(5000);
         }
       }
     } catch (e) {
@@ -231,7 +121,7 @@ const main = async () => {
   const checkForNewPairs = async (ctx) => {
     try {
       // check spot pairs
-      binance.allBookTickers().then((tickers: { [key: string]: Ticker }) => {
+      binance.allBookTickers().then(async (tickers: { [key: string]: Ticker }) => {
         const pairs = Object.values(tickers).map(t => t.symbol);
         // Compare the current pairs to the cached pairs
         const newPairs = pairs.filter(p => !cachedPairs.includes(p));
@@ -243,7 +133,8 @@ const main = async () => {
           if (message.length > 100) {
             // ctx.telegram.sendMessage(botAdmins?.[0], 'Start comparing pairs on Binance Spot');
           } else {
-            ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
+            await ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
+            await sleep(5000);
           }
         }
       });
@@ -253,7 +144,7 @@ const main = async () => {
 
     try {
       // check futures pairs
-      binance.futuresExchangeInfo().then((exchangeInfo) => {
+      binance.futuresExchangeInfo().then(async (exchangeInfo) => {
         const pairs = exchangeInfo.symbols.map((symbol: any) => symbol.symbol);
         const newPairs = pairs.filter(p => !cachedFuturesPairs.includes(p));
         cachedFuturesPairs = pairs;
@@ -263,7 +154,8 @@ const main = async () => {
           if (message.length > 100) {
             // ctx.telegram.sendMessage(botAdmins?.[0], 'Start comparing pairs on Binance Futures');
           } else {
-            ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
+            await ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
+            await sleep(5000);
           }
         }
       });
@@ -283,44 +175,51 @@ const main = async () => {
   bot.start((ctx) => ctx.reply('Welcome'));
 
   // adding the middleware to check if user is admin
-  bot.use((ctx, next) => {
+  bot.use(async (ctx, next) => {
     const userId = ctx?.message?.from?.id || -1;
     if (!botAdmins.includes(userId)) {
-        ctx.reply("Sorry, you do not have permission to perform this action.");
-        console.log("Sorry, you do not have permission to perform this action." + userId + " " + typeof(userId));
-        return
+      await ctx.reply("Sorry, you do not have permission to perform this action.");
+      console.log("Sorry, you do not have permission to perform this action." + userId + " " + typeof(userId));
+      await sleep(5000);
+      return
     }
     return next();
   });
 
   // adding command to enable exchange
-  bot.command("enable", (ctx) => {
-      const exchange = ctx.message.text.split(" ")[1];
-      if (!store[exchange]) {
-          ctx.reply(`${exchange} is not a valid exchange.`);
-          return;
-      }
-      if (store[exchange].enabled) {
-          ctx.reply(`${exchange} is already enabled.`);
-          return;
-      }
-      store[exchange].enabled = true;
-      ctx.reply(`${exchange} has been enabled.`);
+  bot.command("enable", async (ctx) => {
+    const exchange = ctx.message.text.split(" ")[1];
+    if (!store[exchange]) {
+      await ctx.reply(`${exchange} is not a valid exchange.`);
+      await sleep(5000);
+      return;
+    }
+    if (store[exchange].enabled) {
+      await ctx.reply(`${exchange} is already enabled.`);
+      await sleep(5000);
+      return;
+    }
+    store[exchange].enabled = true;
+    await ctx.reply(`${exchange} has been enabled.`);
+    await sleep(5000);
   });
 
   // adding command to disable exchange
-  bot.command("disable", (ctx) => {
-      const exchange = ctx.message.text.split(" ")[1];
-      if (!store[exchange]) {
-          ctx.reply(`${exchange} is not a valid exchange.`);
-          return;
-      }
-      if (!store[exchange].enabled) {
-          ctx.reply(`${exchange} is already disabled.`);
-          return;
-      }
-      store[exchange].enabled = false;
-      ctx.reply(`${exchange} has been disabled.`);
+  bot.command("disable", async (ctx) => {
+    const exchange = ctx.message.text.split(" ")[1];
+    if (!store[exchange]) {
+      await ctx.reply(`${exchange} is not a valid exchange.`);
+      await sleep(5000);
+      return;
+    }
+    if (!store[exchange].enabled) {
+      await ctx.reply(`${exchange} is already disabled.`);
+      await sleep(5000);
+      return;
+    }
+    store[exchange].enabled = false;
+    await ctx.reply(`${exchange} has been disabled.`);
+    await sleep(5000);
   });
 
   bot.command('newpairs', (ctx) => {
@@ -328,29 +227,35 @@ const main = async () => {
     checkForNewPairs(ctx);
   });
 
-  bot.command("enabled_exchanges", (ctx) => {
+  bot.command("enabled_exchanges", async (ctx) => {
     let enabledExchanges = "Enabled Exchanges: ";
     for (const exchange in store) {
-        if (store[exchange].enabled) {
-            enabledExchanges += `${exchange} `;
-        }
+      if (store[exchange].enabled) {
+        enabledExchanges += `${exchange} `;
+      }
     }
-    ctx.reply(enabledExchanges);
+    await ctx.reply(enabledExchanges);
+    await sleep(5000);
   });
 
-  bot.command("help", (ctx) => {
+  bot.command("help", async (ctx) => {
     let helpText = "Available commands:\n";
     helpText += "/enable [exchange] - Enable an exchange\n";
     helpText += "/disable [exchange] - Disable an exchange\n";
     helpText += "/enabled_exchanges - Show all enabled exchanges\n";
     helpText += "/help - Show all available commands\n"
-    ctx.reply(helpText);
+    await ctx.reply(helpText);
+    await sleep(5000);
   });
 
   bot.launch();
 
   setInterval(() => {
-    checkForNewPairs(bot);
+    try {
+      checkForNewPairs(bot);
+    } catch (err) {
+      log(err);
+    }
   }, 60000);
 
 }
