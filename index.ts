@@ -110,6 +110,7 @@ const main = async () => {
           // ctx.telegram.sendMessage(botAdmins?.[0], `Start comparing pairs on ${exchangeName}`);
         } else {
           await ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
+          log(message);
           await sleep(5000);
         }
       }
@@ -134,6 +135,7 @@ const main = async () => {
             // ctx.telegram.sendMessage(botAdmins?.[0], 'Start comparing pairs on Binance Spot');
           } else {
             await ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
+            log(message);
             await sleep(5000);
           }
         }
@@ -155,6 +157,7 @@ const main = async () => {
             // ctx.telegram.sendMessage(botAdmins?.[0], 'Start comparing pairs on Binance Futures');
           } else {
             await ctx.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
+            log(message);
             await sleep(5000);
           }
         }
@@ -178,8 +181,9 @@ const main = async () => {
   bot.use(async (ctx, next) => {
     const userId = ctx?.message?.from?.id || -1;
     if (!botAdmins.includes(userId)) {
-      await ctx.reply("Sorry, you do not have permission to perform this action.");
-      console.log("Sorry, you do not have permission to perform this action." + userId + " " + typeof(userId));
+      const message = "Sorry, you do not have permission to perform this action."
+      await ctx.reply(message);
+      log(message);
       await sleep(5000);
       return
     }
@@ -190,17 +194,23 @@ const main = async () => {
   bot.command("enable", async (ctx) => {
     const exchange = ctx.message.text.split(" ")[1];
     if (!store[exchange]) {
-      await ctx.reply(`${exchange} is not a valid exchange.`);
+      const message = `${exchange} is not a valid exchange.`
+      await ctx.reply(message);
+      log(message)
       await sleep(5000);
       return;
     }
     if (store[exchange].enabled) {
-      await ctx.reply(`${exchange} is already enabled.`);
+      const message = `${exchange} is already enabled.`
+      await ctx.reply(message);
+      log(message)
       await sleep(5000);
       return;
     }
     store[exchange].enabled = true;
-    await ctx.reply(`${exchange} has been enabled.`);
+    const message = `${exchange} has been enabled.`
+    await ctx.reply(message);
+    log(message)
     await sleep(5000);
   });
 
@@ -208,17 +218,23 @@ const main = async () => {
   bot.command("disable", async (ctx) => {
     const exchange = ctx.message.text.split(" ")[1];
     if (!store[exchange]) {
-      await ctx.reply(`${exchange} is not a valid exchange.`);
+      const message = `${exchange} is not a valid exchange.`
+      await ctx.reply(message);
+      log(message)
       await sleep(5000);
       return;
     }
     if (!store[exchange].enabled) {
-      await ctx.reply(`${exchange} is already disabled.`);
+      const message = `${exchange} is already disabled.`
+      await ctx.reply(message);
+      log(message);
       await sleep(5000);
       return;
     }
     store[exchange].enabled = false;
-    await ctx.reply(`${exchange} has been disabled.`);
+    const message = `${exchange} has been disabled.`
+    await ctx.reply(message);
+    log(message);
     await sleep(5000);
   });
 

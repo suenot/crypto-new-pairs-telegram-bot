@@ -96,7 +96,7 @@ export const ccxtExchanges = [
   'probit',
   // 'ripio',
   'stex',
-  'therock',
+  // 'therock',
   // 'tidex',
   'timex',
   'tokocrypto',
