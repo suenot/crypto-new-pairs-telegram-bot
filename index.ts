@@ -120,6 +120,7 @@ const main = async () => {
   }
 
   const checkForNewPairs = async (ctx) => {
+    log('checkForNewPairs ' + new Date());
     try {
       // check spot pairs
       binance.allBookTickers().then(async (tickers: { [key: string]: Ticker }) => {
